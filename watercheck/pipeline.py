@@ -104,7 +104,8 @@ def _read_many(src: Sources, scenes: List[Dict], grid: s1.Grid, log: Callable) -
     out: Dict[str, np.ndarray] = {}
 
     def one(sc: Dict):
-        for attempt in range(2):
+        err: Optional[Exception] = None
+        for _attempt in range(2):
             try:
                 return sc["scene"], src.read(sc, grid)
             except Exception as e:
