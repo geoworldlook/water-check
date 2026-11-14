@@ -1,0 +1,31 @@
+[project]
+name = "watercheck"
+version = "1.0.0"
+description = "Does Sentinel-1 radar see the water level change in a lake or reservoir? Weekly automatic check against gauges"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "rasterio",
+    "requests",
+]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["watercheck", "watercheck.sources"]
+
+[tool.setuptools.package-data]
+watercheck = ["waterbodies.csv", "assets/*"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B"]
+ignore = ["B008", "B023", "B028", "B905"]

@@ -1,0 +1,13 @@
+# Water Check environment for conda / Miniforge (Windows, macOS, Linux):
+#   conda env create -f environment.yml      (update: conda env update -n watercheck -f environment.yml --prune)
+name: watercheck
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - scipy
+  - rasterio
+  - requests
+  - ruff
