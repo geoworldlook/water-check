@@ -82,9 +82,11 @@ def period(date: pd.Timestamp) -> str:
 
 
 def _spearman(a: np.ndarray, b: np.ndarray) -> Optional[float]:
-    if len(a) < 3 or np.std(a) == 0 or np.std(b) == 0:
+    if len(a) < 3:
         return None
     ra, rb = pd.Series(a).rank().to_numpy(), pd.Series(b).rank().to_numpy()
+    if np.std(ra) == 0 or np.std(rb) == 0:
+        return None
     return float(np.corrcoef(ra, rb)[0, 1])
 
 

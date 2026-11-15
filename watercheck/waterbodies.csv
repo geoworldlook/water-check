@@ -1,7 +1,7 @@
 id,country,name,kind,expected,gauge_source,gauge_id,gauge_name,gauge_lat,gauge_lon,min_lon,min_lat,max_lon,max_lat,res_m,season_from,season_to,status,notes
 PL-SIEM,PL,Zbiornik Siemianówka,reservoir,medium,imgw,152230120,Siemianówka,52.9403,23.7572,23.74,52.87,23.98,52.98,20,4,10,active,shallow reservoir on the Narew
 PL-GOPL,PL,Jezioro Gopło,lake,control,imgw,152180080,Kruszwica,52.6742,18.3272,18.28,52.44,18.44,52.69,20,4,10,active,natural lake with a small level range
-PL-LEBS,PL,Jezioro Łebsko,lake,control,imgw,154170090,Izbica,54.6811,17.4281,17.25,54.65,17.55,54.77,20,4,10,active,shallow coastal lake with reed belts
+PL-LEBS,PL,Jezioro Łebsko,lake,control,imgw,154170090,Izbica,54.6811,17.4281,17.25,54.65,17.55,54.77,20,4,10,excluded,excluded 2026-11-15: the rectangle also covers the Baltic Sea (water zone 133.6 km2 for a 71 km2 lake)
 FI-LOKK,FI,Lokka,reservoir,high,syke,2468,"Lokka, ylä",67.8214,27.7481,27.25,67.80,28.35,68.08,40,6,10,active,large shallow reservoir in Lapland
 FI-PORT,FI,Porttipahta,reservoir,high,syke,2458,"Porttipahta, ylä",67.9617,26.7522,26.20,67.93,27.05,68.22,40,6,10,active,large shallow reservoir in Lapland
 SE-VOMB,SE,Vombsjön,regulated lake,high,smhi,2018,Vombsjön Övre,55.698,13.555,13.53,55.655,13.66,55.715,20,4,10,active,drinking-water lake with a level range of a few metres

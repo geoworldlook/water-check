@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Water Check: does radar see the water level change?</title>
+<style>
+/*LEAFLET_CSS*/
+:root{--bg:#eef2ea;--panel:#fff;--ink:#1f2a22;--muted:#5d695f;--line:#dde3d8;--brand:#6f9b3a;--brand-d:#4b7023;
+--brand-l:#eaf2df;--ok:#2f7a45;--warn:#a26b00;--bad:#b23a2e;--grey:#8a8f88;--nd:#cfd3cc;--water:#2f75b5;--live:#d9822b;
+--ui:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:15px;line-height:1.45}
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline}
+header h1{font-size:20px;margin:0}
+header .tag{color:var(--muted)}
+header .upd{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;color:#fff;background:var(--grey)}
+.pill.confirmed{background:var(--ok)}.pill.partly{background:var(--warn)}.pill.notconfirmed{background:var(--bad)}
+.pill.stable{background:#4f7f8f}.pill.unstable{background:var(--live)}.pill.insufficient{background:var(--nd);color:var(--ink)}
+main{max-width:1240px;margin:0 auto;padding:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.kpi .v{font-size:26px;font-weight:700}.kpi .l{color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:14px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+#map{height:520px;border-radius:10px;border:1px solid var(--line)}
+h2{font-size:16px;margin:0 0 8px}h3{font-size:14px;margin:14px 0 6px}
+.big{font-size:30px;font-weight:700}.unit{font-size:14px;color:var(--muted);font-weight:400}
+.muted{color:var(--muted)}.small{font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel)}
+tbody tr{cursor:pointer}tbody tr:hover{background:var(--brand-l)}tbody tr.sel{background:var(--brand-l)}
+.scroll{overflow:auto;max-height:520px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:4px 0}
+.sw{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin-right:5px}
+.banner{background:#fff5dd;border:1px solid #e8cf8f;border-radius:10px;padding:10px 14px;margin-bottom:14px}
+footer{max-width:1240px;margin:0 auto;padding:6px 16px 30px;color:var(--muted);font-size:12.5px}
+a{color:var(--brand-d)}
+ul{margin:6px 0 6px 18px;padding:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Water Check</h1>
+  <span class="tag">Does Sentinel-1 radar see the water level change in a lake or reservoir?</span>
+  <span class="upd" id="upd"></span>
+</header>
+<main>
+  <div id="banner"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div><div id="map"></div>
+      <div class="legend" style="margin-top:8px">
+        <span><span class="pill confirmed">confirmed</span> radar area follows the gauge</span>
+        <span><span class="pill partly">partly</span> one of two rules met</span>
+        <span><span class="pill notconfirmed">not confirmed</span></span>
+        <span><span class="pill stable">stable</span> control lake, no false change</span>
+        <span><span class="pill unstable">unstable</span> control lake, false change</span>
+      </div>
+    </div>
+    <div class="card" id="detail"></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h2>All water bodies</h2>
+    <p class="muted small" style="margin:0 0 8px">Test years 2024–2025. Rank correlation between radar water area and gauge level
+    (median over satellite tracks), error of the level estimated from the area, and the level range on scene days.</p>
+    <div class="scroll"><table id="tbl"></table></div>
+  </div>
+  <div class="card" style="margin-top:14px" id="trust"></div>
+</main>
+<footer id="foot"></footer>
+<script type="application/json" id="data">/*DATA*/</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const W = D.waterbodies, R = D.rules;
+const COL = {confirmed:'#2f7a45', partly:'#a26b00', 'not confirmed':'#b23a2e', stable:'#4f7f8f', unstable:'#d9822b', insufficient:'#cfd3cc'};
+const PCOL = {calibration:'#8a8f88', test:'#2f75b5', live:'#d9822b'};
+const cls = v => v.replace(' ', '');
+const f1 = v => (v === null || v === undefined) ? '–' : Number(v).toFixed(1);
+const f2 = v => (v === null || v === undefined) ? '–' : Number(v).toFixed(2);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let sel = W.length ? W[0].id : null, markers = {};
+
+document.getElementById('upd').textContent = 'updated ' + D.updated;
+const errs = Object.keys(D.errors || {});
+if (errs.length) document.getElementById('banner').innerHTML =
+  '<div class="banner"><b>Not updated in the last run:</b> ' + esc(errs.join(', ')) + '</div>';
+
+function kpis(){
+  const s = D.summary, a = s.signal, c = s.control;
+  const items = [
+    [s.waterbodies, 'lakes and reservoirs in ' + s.countries.length + ' countries, each with a gauge on the ground'],
+    [a.confirmed + ' of ' + a.n, 'water bodies where the radar area follows the gauge level (test years)'],
+    [a.partly + ' / ' + a.not_confirmed, 'partly confirmed / not confirmed'],
+    [c.stable + ' of ' + c.n, 'control lakes where the radar shows no false change'],
+    [s.scenes, 'Sentinel-1 scenes processed since 2022']];
+  document.getElementById('kpis').innerHTML = items.map(i =>
+    '<div class="card kpi"><div class="v">' + i[0] + '</div><div class="l">' + i[1] + '</div></div>').join('');
+}
+
+function tsChart(w){
+  const Wd = 640, H = 230, L = 46, Rr = 46, Tp = 10, B = 24;
+  const t0 = new Date('2022-01-01').getTime(), t1 = new Date(D.run_date).getTime();
+  const x = d => L + (Wd - L - Rr) * (new Date(d).getTime() - t0) / (t1 - t0);
+  const lv = w.level_weekly, s = w.series;
+  if (!lv.date.length) return '<p class="muted small">No gauge data.</p>';
+  const lmin = Math.min.apply(null, lv.level), lmax = Math.max.apply(null, lv.level), lp = (lmax - lmin) * 0.06 || 1;
+  const yl = v => Tp + (H - Tp - B) * (1 - (v - lmin + lp) / (lmax - lmin + 2 * lp));
+  let g = '';
+  for (let y = 2022; y <= new Date(D.run_date).getFullYear(); y++) { const xx = x(y + '-01-01');
+    g += '<line x1="' + xx + '" x2="' + xx + '" y1="' + Tp + '" y2="' + (H - B) + '" stroke="#e6eae2"/><text x="' + (xx + 3) + '" y="' + (H - 7) + '" font-size="11" fill="#5d695f">' + y + '</text>'; }
+  [0, 0.5, 1].forEach(k => { const v = lmin + k * (lmax - lmin);
+    g += '<text x="' + (L - 6) + '" y="' + (yl(v) + 4) + '" text-anchor="end" font-size="11" fill="#1f2a22">' + Math.round(v) + '</text>'; });
+  let d = ''; lv.date.forEach((dt, i) => { d += (i ? 'L' : 'M') + x(dt).toFixed(1) + ' ' + yl(lv.level[i]).toFixed(1); });
+  g += '<path d="' + d + '" fill="none" stroke="#1f2a22" stroke-width="1.5"/>';
+  if (s.area.length) {
+    const amin = Math.min.apply(null, s.area), amax = Math.max.apply(null, s.area), ap = (amax - amin) * 0.06 || 0.1;
+    const ya = v => Tp + (H - Tp - B) * (1 - (v - amin + ap) / (amax - amin + 2 * ap));
+    [0, 0.5, 1].forEach(k => { const v = amin + k * (amax - amin);
+      g += '<text x="' + (Wd - Rr + 6) + '" y="' + (ya(v) + 4) + '" font-size="11" fill="#2f75b5">' + v.toFixed(amax > 50 ? 0 : 1) + '</text>'; });
+    s.date.forEach((dt, i) => { g += '<circle cx="' + x(dt).toFixed(1) + '" cy="' + ya(s.area[i]).toFixed(1) + '" r="2" fill="' + PCOL[s.period[i]] + '" fill-opacity="0.75"/>'; });
+  }
+  return '<svg viewBox="0 0 ' + Wd + ' ' + H + '" role="img" aria-label="Gauge level and radar water area since 2022">' + g + '</svg>' +
+    '<div class="legend"><span><span class="sw" style="background:#1f2a22"></span>gauge level, cm (left axis)</span>' +
+    '<span><span class="dot" style="background:#8a8f88"></span>radar area, km² (right axis): calibration 2022–2023</span>' +
+    '<span><span class="dot" style="background:#2f75b5"></span>test 2024–2025</span>' +
+    '<span><span class="dot" style="background:#d9822b"></span>live, from 2026</span></div>';
+}
+
+function scatter(w){
+  const s = w.series; if (!s.area.length) return '';
+  const Wd = 300, H = 230, L = 46, Rr = 8, Tp = 10, B = 30;
+  const amin = Math.min.apply(null, s.area), amax = Math.max.apply(null, s.area), lmin = Math.min.apply(null, s.level), lmax = Math.max.apply(null, s.level);
+  const x = v => L + (Wd - L - Rr) * (v - amin) / ((amax - amin) || 1), y = v => Tp + (H - Tp - B) * (1 - (v - lmin) / ((lmax - lmin) || 1));
+  let g = '<rect x="' + L + '" y="' + Tp + '" width="' + (Wd - L - Rr) + '" height="' + (H - Tp - B) + '" fill="none" stroke="#e6eae2"/>';
+  s.area.forEach((a, i) => { g += '<circle cx="' + x(a).toFixed(1) + '" cy="' + y(s.level[i]).toFixed(1) + '" r="2.2" fill="' + PCOL[s.period[i]] + '" fill-opacity="0.7"/>'; });
+  g += '<text x="' + (L + (Wd - L - Rr) / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="11" fill="#5d695f">radar water area, km² (' + amin.toFixed(1) + '–' + amax.toFixed(1) + ')</text>';
+  g += '<text x="12" y="' + (Tp + (H - Tp - B) / 2) + '" text-anchor="middle" font-size="11" fill="#5d695f" transform="rotate(-90 12 ' + (Tp + (H - Tp - B) / 2) + ')">gauge level, cm</text>';
+  return '<svg viewBox="0 0 ' + Wd + ' ' + H + '" role="img" aria-label="Radar water area against gauge level">' + g + '</svg>';
+}
+
+function row(label, m){
+  return '<tr><td>' + label + '</td><td></td><td>' + (m.n || 0) + '</td><td>' + f2(m.rho) + '</td><td>' + f1(m.rmse_cm) + '</td><td>' +
+    f1(m.range_cm) + '</td><td>' + (m.rmse_share === null || m.rmse_share === undefined ? '–' : Math.round(100 * m.rmse_share) + '%') + '</td><td>' +
+    (m.cv_area === null || m.cv_area === undefined ? '–' : (100 * m.cv_area).toFixed(1) + '%') + '</td></tr>';
+}
+
+function detail(){
+  const w = W.find(v => v.id === sel); if (!w) return;
+  const t = w.metrics.test, la = w.latest || {};
+  const words = {confirmed:'In the test years the radar water area followed the gauge level, and the level could be estimated from the area within the allowed error.',
+    partly:'In the test years only one of the two rules was met: the radar sees the changes only partly.',
+    'not confirmed':'In the test years the radar water area did not follow the gauge level.',
+    stable:'Control lake: its shores are steep or its level barely changes, and the radar correctly shows an almost constant area.',
+    unstable:'Control lake: the radar area changes more than it should. The method produces false changes here.',
+    insufficient:'There are too few usable scenes or gauge readings for a verdict.'}[w.verdict];
+  let h = '<h2>' + esc(w.name) + ' <span class="muted">(' + w.country + ')</span> <span class="pill ' + cls(w.verdict) + '">' + w.verdict + '</span></h2>' +
+    '<div class="muted small">' + esc(w.kind) + ' · expected signal: ' + w.expected + ' · gauge: ' + esc(w.gauge.name) + ' (' + w.gauge.source.toUpperCase() + ')</div>' +
+    '<div class="two" style="margin:10px 0 2px"><div><span class="big">' + f1(la.level_cm) + '</span> <span class="unit">cm gauge level<br>' + (la.level_date || '–') + '</span></div>' +
+    '<div><span class="big">' + f1(la.area_km2) + '</span> <span class="unit">km² radar water area<br>' + (la.area_date || '–') + '</span></div></div>' +
+    '<h3>How far to trust it here</h3><p style="margin:0 0 6px">' + words + '</p>' +
+    '<table><thead><tr><th>Period</th><th></th><th>Scenes</th><th>Rank corr.</th><th>Level error, cm</th><th>Level range, cm</th><th>Error / range</th><th>Area variation</th></tr></thead><tbody>' +
+    row('Calibration 2022–2023', w.metrics.calibration) + row('<b>Test 2024–2025</b>', t) + row('Live, from 2026', w.metrics.live) + '</tbody></table>' +
+    '<h3>Gauge level and radar water area</h3>' + tsChart(w) +
+    '<div class="two"><div><h3>Area against level</h3>' + scatter(w) + '</div><div><h3>Scenes</h3><div class="small">' +
+    'Water zone: ' + f1(w.zone_km2) + ' km² (from ' + w.zone_scenes + ' scenes)<br>Season: months ' + w.season[0] + '–' + w.season[1] +
+    '<br>Grid: ' + w.res_m + ' m<br>Scenes read: ' + w.scenes + '<br>' +
+    Object.keys(w.flags).map(k => esc(k) + ': ' + w.flags[k]).join('<br>') + '<br>Tracks calibrated: ' + (w.orbits_calibrated.join(', ') || '–') +
+    '<br>Last scene: ' + (w.last_scene || '–') + '<br>Last gauge reading: ' + (w.last_level || '–') + '</div></div></div>';
+  document.getElementById('detail').innerHTML = h;
+  document.querySelectorAll('#tbl tbody tr').forEach(r => r.classList.toggle('sel', r.dataset.id === sel));
+  Object.keys(markers).forEach(k => markers[k].setStyle({weight: k === sel ? 3 : 1, color: k === sel ? '#1f2a22' : '#ffffff'}));
+}
+
+function table(){
+  let h = '<thead><tr><th>Water body</th><th>Country</th><th>Expected</th><th>Scenes (test)</th><th>Rank corr.</th><th>Level error, cm</th>' +
+    '<th>Level range, cm</th><th>Area variation</th><th>Verdict</th></tr></thead><tbody>';
+  W.forEach(w => { const t = w.metrics.test;
+    h += '<tr data-id="' + w.id + '"><td>' + esc(w.name) + '</td><td>' + w.country + '</td><td>' + w.expected + '</td><td>' + (t.n || 0) + '</td><td>' +
+      f2(t.rho) + '</td><td>' + f1(t.rmse_cm) + '</td><td>' + f1(t.range_cm) + '</td><td>' +
+      (t.cv_area === null || t.cv_area === undefined ? '–' : (100 * t.cv_area).toFixed(1) + '%') +
+      '</td><td><span class="pill ' + cls(w.verdict) + '">' + w.verdict + '</span></td></tr>'; });
+  const tb = document.getElementById('tbl'); tb.innerHTML = h + '</tbody>';
+  tb.querySelectorAll('tbody tr').forEach(r => r.addEventListener('click', () => { sel = r.dataset.id; detail(); }));
+}
+
+function trust(){
+  document.getElementById('trust').innerHTML = '<h2>How far to trust this page</h2>' +
+    '<ul><li><b>What is compared.</b> Radar does not measure water level. It sees the water surface: smooth water is dark in a Sentinel-1 image. ' +
+    'We compare the water area from each radar scene with the level measured by a gauge on the same day.</li>' +
+    '<li><b>Three periods.</b> ' + R.calibration[0].slice(0, 4) + '–' + R.calibration[1].slice(0, 4) + ': the water zone and the area-to-level line are fitted. ' +
+    R.test[0].slice(0, 4) + '–' + R.test[1].slice(0, 4) + ': the test, with rules written before these years were computed (protocol W1). From 2026: live.</li>' +
+    '<li><b>Rules.</b> Confirmed when the rank correlation is at least ' + R.rho + ' and the level error is at most ' + Math.round(100 * R.rmse_share) +
+    '% of the level range. Control lakes pass when their radar area varies by at most ' + Math.round(100 * R.control_cv) + '%.</li>' +
+    '<li><b>Control lakes.</b> Lakes with steep shores or an almost constant level are included on purpose. There the radar should show no change.</li>' +
+    '<li><b>Limits.</b> No result in the ice season. Wind brightens the water, so some scenes are dropped. Reeds look like land. ' +
+    'Small water bodies and forested shores give a weak signal. A straight line from area to level is a simplification.</li></ul>';
+}
+
+function map(){
+  if (typeof L === 'undefined') { document.getElementById('map').style.display = 'none'; return; }
+  const m = L.map('map', {scrollWheelZoom: false}).setView([56, 14], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 13, attribution: '© OpenStreetMap contributors'}).addTo(m);
+  W.forEach(w => {
+    markers[w.id] = L.circleMarker([w.lat, w.lon], {radius: 8, color: '#ffffff', weight: 1, fillColor: COL[w.verdict], fillOpacity: 0.95})
+      .addTo(m).bindTooltip(esc(w.name) + ': ' + w.verdict).on('click', () => { sel = w.id; detail(); }); });
+  const fit = () => { m.invalidateSize(); if (W.length) m.fitBounds(L.latLngBounds(W.map(w => [w.lat, w.lon])).pad(0.12)); };
+  fit(); setTimeout(fit, 150); window.addEventListener('load', fit);
+}
+
+document.getElementById('foot').innerHTML = 'Radar: contains modified Copernicus Sentinel data (Sentinel-1 RTC), accessed through the Microsoft Planetary Computer. ' +
+  'Gauge levels: IMGW-PIB (Poland), SYKE (Finland), SMHI (Sweden), Hub’Eau (France), ARPA Lombardia (Italy). Code and method: ' +
+  '<a href="https://github.com/geoworldlook/water-check">github.com/geoworldlook/water-check</a>.';
+kpis(); table(); map(); detail(); trust();
+</script>
+</body>
+</html>

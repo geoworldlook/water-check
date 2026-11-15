@@ -13,7 +13,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 import traceback
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
@@ -103,28 +102,28 @@ def _in_season(date: str, wb: pd.Series) -> bool:
 def _read_many(src: Sources, scenes: List[Dict], grid: s1.Grid, log: Callable) -> Dict[str, np.ndarray]:
     out: Dict[str, np.ndarray] = {}
 
-    def one(sc: Dict):
+    # Odczyt po kolei: jedna scena to ok. 0,5 s; równoległe wątki spowalniały odczyt przez /vsicurl kilkukrotnie.
+    for sc in scenes:
         err: Optional[Exception] = None
         for _attempt in range(2):
             try:
-                return sc["scene"], src.read(sc, grid)
+                out[sc["scene"]] = src.read(sc, grid)
+                err = None
+                break
             except Exception as e:
                 err = e
-        log(f"    scena {sc['scene'][:44]}: odczyt nieudany ({type(err).__name__})")
-        return sc["scene"], None
-
-    with ThreadPoolExecutor(max_workers=config.WORKERS) as ex:
-        for sid, arr in ex.map(one, scenes):
-            if arr is not None:
-                out[sid] = arr
+        if err is not None:
+            log(f"    scena {sc['scene'][:44]}: odczyt nieudany ({type(err).__name__})")
     return out
 
 
 def process(wb: pd.Series, P: config.Paths, src: Sources, today: dt.date, log: Callable, rebuild: bool = False) -> None:
     """Aktualizuje pliki stanu jednego akwenu: poziomy, strefę (jeśli jej nie ma) i powierzchnię dla nowych scen."""
     wid, start = wb["id"], dt.date.fromisoformat(config.START)
-    new = src.levels(wb, start, today)
-    old = read_levels(P, wid)
+    old = pd.Series(dtype=float) if rebuild else read_levels(P, wid)
+    # przy kolejnych przebiegach pobieramy tylko ostatnie 30 dni poziomów (starsze już są w pliku)
+    since = max(start, old.index.max().date() - dt.timedelta(days=30)) if len(old) else start
+    new = src.levels(wb, since, today)
     lev = pd.concat([new, old]) if len(old) else new
     lev = lev[~lev.index.duplicated(keep="first")].sort_index()
     write_levels(P, wid, lev)
@@ -159,6 +158,8 @@ def process(wb: pd.Series, P: config.Paths, src: Sources, today: dt.date, log: C
             m = core.scene_area(arrs[s["scene"]], zone, corem, grid.pixel_km2)
             rows.append({"scene": s["scene"], "date": s["date"], "orbit": s["orbit"], "platform": s["platform"], **m,
                          "flag": core.flag(m)})
+        if len(todo) > 40:
+            log(f"    {wid}: {min(i + 40, len(todo))} z {len(todo)} scen")
     if rows:
         add = pd.DataFrame(rows)
         table = add if table.empty else pd.concat([table, add], ignore_index=True)
@@ -193,6 +194,10 @@ def evaluate_site(wb: pd.Series, P: config.Paths) -> Dict:
         "orbits_calibrated": sorted(fits), "metrics": metrics, "verdict": core.verdict(wb["expected"], metrics["test"]),
         "last_scene": sc["date"].max().strftime("%Y-%m-%d") if len(sc) else None,
         "last_level": lev.index.max().strftime("%Y-%m-%d") if len(lev) else None,
+        "latest": {"level_cm": round(float(lev.iloc[-1]), 1) if len(lev) else None,
+                   "level_date": lev.index.max().strftime("%Y-%m-%d") if len(lev) else None,
+                   "area_km2": round(float(ok.sort_values("date")["area_km2"].iloc[-1]), 2) if len(ok) else None,
+                   "area_date": ok["date"].max().strftime("%Y-%m-%d") if len(ok) else None},
         "series": {"date": [d.strftime("%Y-%m-%d") for d in x["date"]], "area": [round(float(v), 2) for v in x["area_km2"]],
                    "level": [round(float(v), 1) for v in x["level_cm"]],
                    "pred": [None if pd.isna(v) else round(float(v), 1) for v in x["pred_cm"]],

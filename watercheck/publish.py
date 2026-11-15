@@ -36,10 +36,19 @@ def map_points(result: Dict) -> Dict:
             extra += f", level error {t['rmse_cm']} cm of a {t['range_cm']} cm range." if t.get("rmse_cm") is not None else "."
         elif t.get("cv_area") is not None:
             extra = f" Area variation in 2024–2025: {round(100 * t['cv_area'], 1)}%."
+        la = w.get("latest") or {}
+        reading = ""
+        if la.get("level_cm") is not None:
+            reading = f"Gauge level on {la['level_date']}: {la['level_cm']} cm. "
+        if la.get("area_km2") is not None:
+            reading += f"Radar water area on {la['area_date']}: {la['area_km2']} km². "
         feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [w["lon"], w["lat"]]},
                       "properties": {"project": "water-check", "id": w["id"], "title": f"Water Check · {w['name']}",
-                                     "description": WORDS[w["verdict"]].capitalize() + "." + extra,
-                                     "status": w["verdict"], "updated": result["run_date"], "url": PANEL_URL}})
+                                     "description": reading + WORDS[w["verdict"]].capitalize() + "." + extra,
+                                     "status": w["verdict"], "updated": result["run_date"],
+                                     "reading": la.get("level_cm"), "reading_unit": "cm gauge level",
+                                     "reading_date": la.get("level_date"), "area_km2": la.get("area_km2"),
+                                     "area_date": la.get("area_date"), "url": PANEL_URL}})
     return {"type": "FeatureCollection", "features": feats}
 
 

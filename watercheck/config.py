@@ -20,7 +20,6 @@ MIN_ORBIT_SCENES = 8                 # tor orbity liczy się przy co najmniej 8 
 RHO_PASS = 0.7                       # H-W1
 RMSE_SHARE_PASS = 0.25               # H-W2: błąd poziomu najwyżej 25% zakresu poziomu
 CONTROL_CV_PASS = 0.05               # H-W3: zmienność powierzchni akwenu kontrolnego najwyżej 5%
-WORKERS = 4
 
 PROTOCOL = Path("docs") / "evidence" / "W1_protokol_powierzchnia_poziom.md"
 PROTOCOL_SHA256 = "3f9bf6c0a53d8d70eeea7616237f2cad99199c58a9dba3f6ed2df45117124640"

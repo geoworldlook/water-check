@@ -1,0 +1,43 @@
+{
+ "project": "water-check",
+ "updated": "2026-11-15T19:52Z",
+ "run_date": "2026-11-15",
+ "rules": {
+  "rho": 0.7,
+  "rmse_share": 0.25,
+  "control_cv": 0.05,
+  "calibration": [
+   "2022-01-01",
+   "2023-12-31"
+  ],
+  "test": [
+   "2024-01-01",
+   "2025-12-31"
+  ]
+ },
+ "summary": {
+  "waterbodies": 10,
+  "countries": [
+   "FI",
+   "FR",
+   "IT",
+   "PL",
+   "SE"
+  ],
+  "scenes": 5691,
+  "signal": {
+   "n": 7,
+   "confirmed": 2,
+   "partly": 1,
+   "not_confirmed": 4,
+   "insufficient": 0
+  },
+  "control": {
+   "n": 3,
+   "stable": 3,
+   "unstable": 0,
+   "insufficient": 0
+  }
+ },
+ "errors": {}
+}
