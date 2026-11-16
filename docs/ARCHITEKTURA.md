@@ -11,7 +11,7 @@ Sentinel-1 RTC (Planetary Computer, katalog STAC) ──────┘         
                                                                             GitHub Pages (panel) ◀─────┘
 ```
 
-Przebieg uruchamia GitHub Actions codziennie o 07:20 UTC (`.github/workflows/monitor.yml`). Przebieg jest przyrostowy:
+Przebieg uruchamia GitHub Actions dwa razy dziennie (07:20 i 15:20 UTC) (`.github/workflows/monitor.yml`). Przebieg jest przyrostowy:
 scena policzona raz nie jest pobierana ponownie, więc zwykły dzień to kilka minut. Po przebiegu automat zapisuje
 zmiany w `data/` i `docs/showcase/` do repozytorium. To samo polecenie działa lokalnie: `gwl water-check run`.
 
@@ -46,6 +46,7 @@ Do miar wchodzą tylko sceny `ok` z poziomem wodowskazu z tego samego dnia.
 Publikacja jest wstrzymana (kod wyjścia 2, panel bez zmian), gdy aktualizacja nie powiodła się dla więcej niż 40% akwenów.
 Pojedynczy akwen z błędem nie zatrzymuje pozostałych; jego identyfikator pojawia się w panelu jako nieodświeżony.
 Każdy nieudany przebieg w GitHub Actions zakłada zgłoszenie (issue) albo dopisuje komentarz do otwartego.
+Pierwszy udany przebieg sam zamyka to zgłoszenie z komentarzem.
 
 ## 5. Wynik (`docs/showcase/`)
 

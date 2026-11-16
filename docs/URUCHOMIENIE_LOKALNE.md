@@ -1,6 +1,6 @@
 # Water Check — uruchomienie
 
-Water Check działa sam: przebieg uruchamia GitHub Actions codziennie o 07:20 UTC i sam publikuje panel.
+Water Check działa sam: GitHub Actions uruchamia przebieg dwa razy dziennie (07:20 i 15:20 UTC) i sam publikuje panel.
 Ta instrukcja jest potrzebna tylko wtedy, gdy chcesz uruchomić coś ręcznie.
 
 ## 1. Jedno polecenie
@@ -46,7 +46,7 @@ liczy powierzchnię wody dla nowych scen radarowych i przelicza panel.
 |---|---|---|
 | W panelu napis „Not updated in the last run” | jeden akwen nie odświeżył się (np. API wodowskazu nie odpowiadało) | poczekać do następnego przebiegu |
 | Kod wyjścia 2, napis „bramka jakości” | błąd w więcej niż 40% akwenów; panel celowo bez zmian | sprawdzić log; zwykle to chwilowy brak sieci |
-| Zgłoszenie „Monitor run failed” w repozytorium | przebieg automatu się nie udał | otworzyć log z linku w zgłoszeniu; po udanym przebiegu zamknąć zgłoszenie |
+| Zgłoszenie „Monitor run failed” w repozytorium | przebieg automatu się nie udał | zwykle nic: następny udany przebieg sam zamknie zgłoszenie; gdy wisi dłużej niż dobę, otworzyć log z linku |
 | Odczyt scen kończy się błędem dostępu | usługa Planetary Computer zmieniła zasady dostępu | przejść na Copernicus Data Space (nowy plik w `sources/`) |
 | Zimą nie przybywa scen | to normalne: poza sezonem bez lodu sceny nie są liczone | nic; poziomy z wodowskazów dopisują się dalej |
 

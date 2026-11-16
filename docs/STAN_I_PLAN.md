@@ -16,7 +16,8 @@ w GitHub Actions → małe pliki w repozytorium → panel publiczny (GitHub Page
 
 - **Panel (EN):** 10 akwenów w 5 krajach (Polska, Finlandia, Szwecja, Francja, Włochy). Mapa, ostatni poziom
   z wodowskazu, ostatnia powierzchnia z radaru, werdykt, wykres poziomu i powierzchni od 2022, wykres powierzchnia–poziom.
-- **Automat:** przebieg codziennie o 07:20 UTC w GitHub Actions; liczy tylko nowe sceny; przy błędzie zgłoszenie w repozytorium.
+- **Automat:** przebieg dwa razy dziennie (07:20 i 15:20 UTC) w GitHub Actions; liczy tylko nowe sceny; przy błędzie zgłoszenie
+  w repozytorium, które pierwszy udany przebieg sam zamyka.
 - **Rekonstrukcja:** 5691 scen od 2022 roku w sezonach bez lodu.
 - **Kod:** pakiet `watercheck`, test bez sieci, CI (linter, test, budowa obrazu Dockera).
 
