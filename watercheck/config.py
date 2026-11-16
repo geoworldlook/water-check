@@ -24,6 +24,12 @@ CONTROL_CV_PASS = 0.05               # H-W3: zmienność powierzchni akwenu kont
 PROTOCOL = Path("docs") / "evidence" / "W1_protokol_powierzchnia_poziom.md"
 PROTOCOL_SHA256 = "3f9bf6c0a53d8d70eeea7616237f2cad99199c58a9dba3f6ed2df45117124640"
 
+# Protokol W2: metoda v2 (zamrozona)
+V2_WINDOW_DAYS = 15
+V2_CURVE = "quad"
+PROTOCOL_W2 = Path("docs") / "evidence" / "W2_protokol_metoda_v2.md"
+PROTOCOL_W2_SHA256 = "7698121a83a89d71ea694b50e437761ce3b4874dedd9dfad75e2516be460a340"
+
 
 @dataclass(frozen=True)
 class Paths:
