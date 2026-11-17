@@ -1,7 +1,7 @@
 {
  "project": "water-check",
- "updated": "2026-11-16T23:47Z",
- "run_date": "2026-11-16",
+ "updated": "2026-11-17T04:18Z",
+ "run_date": "2026-11-17",
  "rules": {
   "rho": 0.7,
   "rmse_share": 0.25,
@@ -16,20 +16,19 @@
   ]
  },
  "summary": {
-  "waterbodies": 10,
+  "waterbodies": 9,
   "countries": [
    "FI",
    "FR",
-   "IT",
    "PL",
    "SE"
   ],
-  "scenes": 5691,
+  "scenes": 5335,
   "signal": {
-   "n": 7,
+   "n": 6,
    "confirmed": 2,
    "partly": 1,
-   "not_confirmed": 4,
+   "not_confirmed": 3,
    "insufficient": 0
   },
   "control": {
