@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import config, core, pipeline
+from . import config, core, pipeline, series
 from .sources import clean, imgw, s1, smhi
 
 TODAY = dt.date(2026, 11, 14)
@@ -124,6 +124,38 @@ def unit_tests() -> None:
     check(len(s) == 2 and s.iloc[1] == 2181.5, "SMHI: wiersze danych z pliku CSV")
     c = clean(pd.Series([5400.0] * 20 + [0.0, 5405.0], index=pd.date_range("2024-01-01", periods=22)))
     check(len(c) == 21 and c.min() > 5000, "kontrola jakości poziomu: zero odrzucone")
+    # metoda v2 (protokół W2)
+    days = pd.date_range("2022-04-01", periods=60, freq="6D")
+    lvl = 300 + 40 * np.sin(np.arange(60) / 6.0)
+    a = pd.DataFrame({"date": days, "orbit": 1, "area_km2": 10 + 0.02 * lvl, "level_cm": lvl})
+    b = a.assign(orbit=2, area_km2=a["area_km2"] * 1.5 + 3, date=days + pd.Timedelta(days=3))
+    x = pd.concat([a, b], ignore_index=True)
+    z = series.normalise(x, series.orbit_stats(x))
+    check(np.allclose(z[:60].to_numpy(), z[60:].to_numpy()), "v2: tory sprowadzone do wspólnej skali")
+    s15 = series.smooth(x, z, 15)
+    cut = x["date"] <= pd.Timestamp("2022-08-01")
+    check(np.allclose(series.smooth(x[cut], z[cut], 15).to_numpy(), s15[cut].to_numpy()),
+          "v2: wygładzanie nie korzysta z późniejszych scen")
+    zz = np.linspace(-2, 2, 40)
+    f = series.fit_curve(zz, 100 + 10 * zz + 2 * zz ** 2, "quad")
+    check(abs(f(np.array([1.0]))[0] - 112) < 1e-6 and abs(f(np.array([3.0]))[0] - (128 + 18)) < 1e-6,
+          "v2: krzywa 2. stopnia, poza zakresem przedłużona prostą")
+    g = series.fit_curve(zz, 100 - 5 * zz ** 2 + zz, "quad")
+    check(abs((g(np.array([1.0])) - g(np.array([0.0])))[0] - (g(np.array([0.0])) - g(np.array([-1.0])))[0]) < 1e-6,
+          "v2: krzywa niemonotoniczna zastąpiona prostą")
+    days = pd.date_range("2022-04-01", "2025-10-30", freq="5D")
+    lvl = 300 + 60 * np.sin(np.arange(len(days)) / 9.0)
+    x = pd.DataFrame({"date": days, "orbit": 1, "area_km2": 10 + 0.02 * lvl, "level_cm": lvl})
+    w1 = series.walk_forward(x, 15, "quad", 2024)
+    x2 = x.copy()
+    x2.loc[x2["date"].dt.year == 2025, "level_cm"] = 0.0
+    w2 = series.walk_forward(x2, 15, "quad", 2024)
+    last = (x["date"].dt.year == 2025).to_numpy()
+    check(w1.loc[x["date"].dt.year < 2024, "pred_cm"].isna().all() and w1.loc[last, "pred_cm"].notna().all()
+          and np.allclose(w1.loc[last, "pred_cm"], w2.loc[last, "pred_cm"]),
+          "v2: coroczna rekalibracja nie używa poziomów z ocenianego roku")
+    sc = series.period_scores(w1[x["date"].dt.year >= 2024])
+    check(sc["rho"] > 0.9 and sc["rmse_share"] < 0.25, "v2: miary okresu")
 
 
 def repo_checks() -> None:
@@ -131,11 +163,13 @@ def repo_checks() -> None:
     reg = pipeline.load_registry()
     check(len(reg) >= 8 and reg["id"].is_unique, f"rejestr: {len(reg)} akwenów, identyfikatory unikalne")
     check(set(reg["expected"]) <= {"high", "medium", "control"} and set(reg["gauge_source"]) <= set(
-        ("imgw", "syke", "smhi", "hubeau", "lombardia")), "rejestr: klasy i źródła wodowskazów")
+        ("imgw", "syke", "smhi", "hubeau")), "rejestr: klasy i źródła wodowskazów")
     check((reg["max_lon"] > reg["min_lon"]).all() and (reg["max_lat"] > reg["min_lat"]).all()
           and reg["res_m"].isin([10, 20, 40]).all(), "rejestr: prostokąty i rozdzielczość")
     sha = hashlib.sha256((config.ROOT / config.PROTOCOL).read_bytes()).hexdigest()
     check(sha == config.PROTOCOL_SHA256, "protokół W1 niezmieniony od zapisania (SHA-256)")
+    sha = hashlib.sha256((config.ROOT / config.PROTOCOL_W2).read_bytes()).hexdigest()
+    check(sha == config.PROTOCOL_W2_SHA256, "protokół W2 niezmieniony od zapisania (SHA-256)")
 
 
 def pipeline_test(work: Path) -> None:
@@ -156,6 +190,9 @@ def pipeline_test(work: Path) -> None:
     check(t["rho"] >= 0.9 and t["rmse_share"] <= 0.25 and t["orbits"] == 2, "akwen z sygnałem: ρ i błąd poziomu w normie")
     check(sig["verdict"] == "confirmed" and ctl["verdict"] == "stable", "werdykty: confirmed i stable")
     check(sig["orbits_calibrated"] == [22, 95] and sig["zone_km2"] > 1.0, "kalibracja dwóch torów, strefa wyznaczona")
+    check(sig["v2"]["verdict_retest"] == "confirmed" and sig["v2"]["verdict_confirm"] == "confirmed"
+          and ctl["v2"]["verdict_confirm"] == "stable" and data["v2"]["window_days"] == config.V2_WINDOW_DAYS
+          and len(sig["series"]["pred_v2"]) == len(sig["series"]["date"]), "metoda v2: werdykty i szereg w danych panelu")
     check(sig["metrics"]["live"]["n"] > 10 and sig["latest"]["area_km2"] is not None, "okres na żywo i ostatnie odczyty")
     check(all(4 <= int(d[5:7]) <= 10 for d in sig["series"]["date"]), "tylko sceny z sezonu")
     geo = json.loads((P.showcase / "map_points.geojson").read_text(encoding="utf-8"))

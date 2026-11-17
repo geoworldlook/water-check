@@ -2,6 +2,19 @@
 
 Versions follow semantic versioning (major.minor.patch).
 
+## 1.1.0 - 2026-11-17
+
+- **Registry:** only water bodies with current gauge data (decision D-107). Lago d'Idro removed: its open gauge
+  data end on 2025-01-01. Now 9 water bodies in 4 countries, 5,335 scenes. The unused ARPA Lombardia source is removed.
+- **Method v2 (protocol W2, decision D-108):** common scale for satellite tracks, 15-day causal median of the area,
+  quadratic area-to-level curve, yearly refit on all earlier years (`watercheck/series.py`). The window and the
+  curve were chosen on 2022-2023 only (`notebooks/experiments/W2_wybor_metody.py`).
+- **Result, reported as measured:** v2 lowers the level error on 5 of 6 water bodies in 2024-2025 (a second look,
+  not an independent test). The confirmation year 2026 is negative: 0 confirmed, 2 partly, 3 not confirmed.
+  Details in `docs/evidence/W2_wyniki.md`. The W1 verdicts stay the main result.
+- **Panel:** two extra rows per water body (method v2) and a short explanation.
+- **Self-test:** unit tests for method v2 (no look-ahead in smoothing and in the yearly refit), SHA-256 of protocol W2.
+
 ## 1.0.0 - 2026-11-15
 
 First version, built in the GeoWorldLook project standard (decision D-096).

@@ -146,8 +146,8 @@ function scatter(w){
   return '<svg viewBox="0 0 ' + Wd + ' ' + H + '" role="img" aria-label="Radar water area against gauge level">' + g + '</svg>';
 }
 
-function row(label, m){
-  return '<tr><td>' + label + '</td><td></td><td>' + (m.n || 0) + '</td><td>' + f2(m.rho) + '</td><td>' + f1(m.rmse_cm) + '</td><td>' +
+function row(label, m, v){
+  return '<tr><td>' + label + '</td><td>' + (v ? '<span class="pill ' + cls(v) + '">' + v + '</span>' : '') + '</td><td>' + (m.n || 0) + '</td><td>' + f2(m.rho) + '</td><td>' + f1(m.rmse_cm) + '</td><td>' +
     f1(m.range_cm) + '</td><td>' + (m.rmse_share === null || m.rmse_share === undefined ? '–' : Math.round(100 * m.rmse_share) + '%') + '</td><td>' +
     (m.cv_area === null || m.cv_area === undefined ? '–' : (100 * m.cv_area).toFixed(1) + '%') + '</td></tr>';
 }
@@ -167,7 +167,11 @@ function detail(){
     '<div><span class="big">' + f1(la.area_km2) + '</span> <span class="unit">km² radar water area<br>' + (la.area_date || '–') + '</span></div></div>' +
     '<h3>How far to trust it here</h3><p style="margin:0 0 6px">' + words + '</p>' +
     '<table><thead><tr><th>Period</th><th></th><th>Scenes</th><th>Rank corr.</th><th>Level error, cm</th><th>Level range, cm</th><th>Error / range</th><th>Area variation</th></tr></thead><tbody>' +
-    row('Calibration 2022–2023', w.metrics.calibration) + row('<b>Test 2024–2025</b>', t) + row('Live, from 2026', w.metrics.live) + '</tbody></table>' +
+    row('Calibration 2022–2023', w.metrics.calibration) + row('<b>Test 2024–2025</b>', t, w.verdict) + row('Live, from 2026', w.metrics.live) +
+    (w.v2 ? row('Method v2, 2024–2025 (second look)', w.v2.retest, w.v2.verdict_retest) +
+      row('Method v2, 2026 (confirmation)', w.v2.confirm, w.v2.verdict_confirm) : '') + '</tbody></table>' +
+    '<p class="muted small" style="margin:6px 0 0">Rows 1–3: method v1 (one line per track, fitted on 2022–2023). ' +
+    'Method v2: 15-day median of the area, one curve, refitted every year on all earlier years.</p>' +
     '<h3>Gauge level and radar water area</h3>' + tsChart(w) +
     '<div class="two"><div><h3>Area against level</h3>' + scatter(w) + '</div><div><h3>Scenes</h3><div class="small">' +
     'Water zone: ' + f1(w.zone_km2) + ' km² (from ' + w.zone_scenes + ' scenes)<br>Season: months ' + w.season[0] + '–' + w.season[1] +
@@ -191,6 +195,7 @@ function table(){
   tb.querySelectorAll('tbody tr').forEach(r => r.addEventListener('click', () => { sel = r.dataset.id; detail(); }));
 }
 
+const tally = o => Object.keys(o).map(k => o[k] + ' ' + k.replace('_', ' ')).join(', ') || 'no verdict';
 function trust(){
   document.getElementById('trust').innerHTML = '<h2>How far to trust this page</h2>' +
     '<ul><li><b>What is compared.</b> Radar does not measure water level. It sees the water surface: smooth water is dark in a Sentinel-1 image. ' +
@@ -199,6 +204,11 @@ function trust(){
     R.test[0].slice(0, 4) + '–' + R.test[1].slice(0, 4) + ': the test, with rules written before these years were computed (protocol W1). From 2026: live.</li>' +
     '<li><b>Rules.</b> Confirmed when the rank correlation is at least ' + R.rho + ' and the level error is at most ' + Math.round(100 * R.rmse_share) +
     '% of the level range. Control lakes pass when their radar area varies by at most ' + Math.round(100 * R.control_cv) + '%.</li>' +
+    (D.v2 ? '<li><b>Method v2.</b> After the test we tried to improve the method the way recent studies do: a ' + D.v2.window_days +
+    '-day median of the radar area, one area-to-level curve for all tracks, refitted every year on all earlier years (protocol W2). ' +
+    'On 2024–2025 (a second look at years we already knew): ' + tally(D.v2.retest.signal) + '. On 2026 (confirmation year): ' +
+    tally(D.v2.confirm.signal) + '. The level error became smaller on most water bodies, but the verdicts did not improve: ' +
+    'in 2026 the level moved less than the error of the method.</li>' : '') +
     '<li><b>Control lakes.</b> Lakes with steep shores or an almost constant level are included on purpose. There the radar should show no change.</li>' +
     '<li><b>Limits.</b> No result in the ice season. Wind brightens the water, so some scenes are dropped. Reeds look like land. ' +
     'Small water bodies and forested shores give a weak signal. A straight line from area to level is a simplification.</li></ul>';
@@ -216,7 +226,7 @@ function map(){
 }
 
 document.getElementById('foot').innerHTML = 'Radar: contains modified Copernicus Sentinel data (Sentinel-1 RTC), accessed through the Microsoft Planetary Computer. ' +
-  'Gauge levels: IMGW-PIB (Poland), SYKE (Finland), SMHI (Sweden), Hub’Eau (France), ARPA Lombardia (Italy). Code and method: ' +
+  'Gauge levels: IMGW-PIB (Poland), SYKE (Finland), SMHI (Sweden), Hub’Eau (France). Code and method: ' +
   '<a href="https://github.com/geoworldlook/water-check">github.com/geoworldlook/water-check</a>.';
 kpis(); table(); map(); detail(); trust();
 </script>

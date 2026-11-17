@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from . import config, core, publish
+from . import config, core, publish, series
 from .sources import gauge_daily, s1
 
 REGISTRY = Path(__file__).resolve().parent / "waterbodies.csv"
@@ -182,6 +182,16 @@ def evaluate_site(wb: pd.Series, P: config.Paths) -> Dict:
     fits = core.calibrate(x[x["period"] == "calibration"])
     metrics = {p: core.evaluate(x[x["period"] == p], fits) for p in ("calibration", "test", "live")}
     x = x.assign(pred_cm=core.predict(x, fits)) if len(x) else x.assign(pred_cm=[])
+    # metoda v2 (protokół W2): wygładzanie, wspólna skala torów, krzywa, coroczna rekalibracja
+    first = pd.Timestamp(config.CAL_END).year + 1
+    if len(x):
+        w2 = series.walk_forward(x, config.V2_WINDOW_DAYS, config.V2_CURVE, first)
+    else:
+        w2 = x.assign(z=[], pred_cm=[])
+    live_year = pd.Timestamp(config.TEST_END).year + 1
+    yr = pd.to_datetime(w2["date"]).dt.year if len(w2) else pd.Series(dtype=int)
+    v2_retest = series.period_scores(w2[(yr >= first) & (yr < live_year)]) if len(w2) else series.period_scores(w2)
+    v2_confirm = series.period_scores(w2[yr >= live_year]) if len(w2) else series.period_scores(w2)
     week = lev.resample("W").mean().dropna() if len(lev) else lev
     return {
         "id": wid, "country": wb["country"], "name": wb["name"], "kind": wb["kind"], "expected": wb["expected"],
@@ -192,6 +202,9 @@ def evaluate_site(wb: pd.Series, P: config.Paths) -> Dict:
         "zone_km2": round(float(z[0].sum()) * float(wb["res_m"]) ** 2 / 1e6, 1) if z else None,
         "zone_scenes": z[2] if z else 0, "scenes": int(len(sc)), "flags": {k: int(v) for k, v in flags.items()},
         "orbits_calibrated": sorted(fits), "metrics": metrics, "verdict": core.verdict(wb["expected"], metrics["test"]),
+        "v2": {"retest": v2_retest, "confirm": v2_confirm,
+               "verdict_retest": core.verdict(wb["expected"], v2_retest),
+               "verdict_confirm": core.verdict(wb["expected"], v2_confirm)},
         "last_scene": sc["date"].max().strftime("%Y-%m-%d") if len(sc) else None,
         "last_level": lev.index.max().strftime("%Y-%m-%d") if len(lev) else None,
         "latest": {"level_cm": round(float(lev.iloc[-1]), 1) if len(lev) else None,
@@ -201,7 +214,8 @@ def evaluate_site(wb: pd.Series, P: config.Paths) -> Dict:
         "series": {"date": [d.strftime("%Y-%m-%d") for d in x["date"]], "area": [round(float(v), 2) for v in x["area_km2"]],
                    "level": [round(float(v), 1) for v in x["level_cm"]],
                    "pred": [None if pd.isna(v) else round(float(v), 1) for v in x["pred_cm"]],
-                   "orbit": [int(v) for v in x["orbit"]], "period": list(x["period"])},
+                   "orbit": [int(v) for v in x["orbit"]], "period": list(x["period"]),
+                   "pred_v2": [None if pd.isna(v) else round(float(v), 1) for v in w2["pred_cm"]] if len(w2) else []},
         "level_weekly": {"date": [d.strftime("%Y-%m-%d") for d in week.index], "level": [round(float(v), 1) for v in week]},
     }
 
@@ -210,6 +224,12 @@ def summarise(sites: List[Dict], errors: Dict[str, str], today: dt.date) -> Dict
     signal = [s for s in sites if s["expected"] != "control"]
     control = [s for s in sites if s["expected"] == "control"]
     count = lambda rows, v: sum(1 for s in rows if s["verdict"] == v)  # noqa: E731
+
+    def tally(rows: List[Dict], key: str) -> Dict[str, int]:
+        vals = [s["v2"][key] for s in rows]
+        return {v.replace(" ", "_"): vals.count(v) for v in ("confirmed", "partly", "not confirmed", "stable", "unstable",
+                                                            "insufficient") if vals.count(v)}
+
     return {"project": "water-check", "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
             "run_date": today.isoformat(),
             "rules": {"rho": config.RHO_PASS, "rmse_share": config.RMSE_SHARE_PASS, "control_cv": config.CONTROL_CV_PASS,
@@ -220,6 +240,9 @@ def summarise(sites: List[Dict], errors: Dict[str, str], today: dt.date) -> Dict
                                    "not_confirmed": count(signal, "not confirmed"), "insufficient": count(signal, "insufficient")},
                         "control": {"n": len(control), "stable": count(control, "stable"), "unstable": count(control, "unstable"),
                                     "insufficient": count(control, "insufficient")}},
+            "v2": {"window_days": config.V2_WINDOW_DAYS, "curve": config.V2_CURVE,
+                   "retest": {"signal": tally(signal, "verdict_retest"), "control": tally(control, "verdict_retest")},
+                   "confirm": {"signal": tally(signal, "verdict_confirm"), "control": tally(control, "verdict_confirm")}},
             "errors": errors, "waterbodies": sites}
 
 

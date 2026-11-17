@@ -1,6 +1,6 @@
 [project]
 name = "watercheck"
-version = "1.0.0"
+version = "1.1.0"
 description = "Does Sentinel-1 radar see the water level change in a lake or reservoir? Weekly automatic check against gauges"
 readme = "README.md"
 license = {file = "LICENSE"}

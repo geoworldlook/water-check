@@ -125,3 +125,54 @@ def evaluate(fit: pd.DataFrame, test: pd.DataFrame, window_days: int, kind: str)
         mean = float(np.median([m for m, _ in stats.values()]))
         out["cv_area"] = round(float(np.nanstd(zt[ok].to_numpy(float)) * sd / mean), 4) if mean > 0 else None
     return out
+
+
+def walk_forward(x: pd.DataFrame, window_days: int, kind: str, first_year: int) -> pd.DataFrame:
+    """Coroczna rekalibracja: dla każdego roku R >= first_year statystyki torów i krzywa pochodzą ze wszystkich lat
+    wcześniejszych. Zwraca kopię x z kolumnami: z (wygładzona powierzchnia w skali wspólnej) i pred_cm (poziom z krzywej)."""
+    out = x.copy()
+    out["z"] = np.nan
+    out["pred_cm"] = np.nan
+    years = sorted(int(y) for y in pd.to_datetime(x["date"]).dt.year.unique())
+    for year in years:
+        if year < first_year:
+            continue
+        fit = x[pd.to_datetime(x["date"]).dt.year < year]
+        test = x[pd.to_datetime(x["date"]).dt.year == year]
+        if len(fit) < MIN_FIT or test.empty:
+            continue
+        stats = orbit_stats(fit)
+        zf = smooth(fit, normalise(fit, stats), window_days)
+        zt = smooth(test, normalise(test, stats), window_days)
+        curve = fit_curve(zf.to_numpy(float), fit["level_cm"].to_numpy(float), kind)
+        out.loc[test.index, "z"] = zt.values
+        if curve is not None:
+            ok = zt.notna()
+            out.loc[zt.index[ok], "pred_cm"] = curve(zt[ok].to_numpy(float))
+    return out
+
+
+def period_scores(w: pd.DataFrame) -> Dict[str, Optional[float]]:
+    """Miary okresu z tabeli po walk_forward: rho (ranga poziomu z krzywej wobec poziomu z wodowskazu),
+    błąd poziomu, zakres poziomu, zmienność powierzchni (mediana po latach z rozrzutu wygładzonej powierzchni)."""
+    out: Dict[str, Optional[float]] = {"n": 0, "rho": None, "rmse_cm": None, "range_cm": None, "rmse_share": None,
+                                       "cv_area": None}
+    q = w.dropna(subset=["pred_cm", "level_cm"])
+    out["n"] = int(len(q))
+    if len(q) < MIN_ORBIT:
+        return out
+    lvl, pred = q["level_cm"].to_numpy(float), q["pred_cm"].to_numpy(float)
+    r = spearman(pred, lvl)
+    out["rho"] = round(r, 3) if r is not None else None
+    rng = float(np.percentile(lvl, 95) - np.percentile(lvl, 5))
+    out["range_cm"] = round(rng, 1)
+    out["rmse_cm"] = round(float(np.sqrt(np.mean((pred - lvl) ** 2))), 1)
+    out["rmse_share"] = round(out["rmse_cm"] / rng, 3) if rng > 0 else None
+    cvs = []
+    for _, g in q.groupby(pd.to_datetime(q["date"]).dt.year):
+        sd = g.groupby("orbit")["area_km2"].std().median()
+        mean = g["area_km2"].mean()
+        if len(g) >= MIN_ORBIT and mean > 0 and np.isfinite(sd):
+            cvs.append(float(np.nanstd(g["z"].to_numpy(float)) * sd / mean))
+    out["cv_area"] = round(float(np.median(cvs)), 4) if cvs else None
+    return out

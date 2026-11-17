@@ -1,11 +1,11 @@
-# Water Check — architektura (wersja 1.0)
+# Water Check — architektura (wersja 1.1)
 
 Opis kodu w pakiecie `watercheck/`. Stan projektu i wyniki: `docs/STAN_I_PLAN.md`; zmiany wersji: `CHANGELOG.md`.
 
 ## 1. Przepływ
 
 ```text
-wodowskazy (IMGW, SYKE, SMHI, Hub'Eau, ARPA Lombardia) ─┐
+wodowskazy (IMGW, SYKE, SMHI, Hub'Eau) ─────────────────┐
                                                         ├─▶ data/ (małe pliki, stan potoku) ─▶ miary ─▶ docs/showcase/
 Sentinel-1 RTC (Planetary Computer, katalog STAC) ──────┘                                              │
                                                                             GitHub Pages (panel) ◀─────┘
@@ -21,12 +21,13 @@ zmiany w `data/` i `docs/showcase/` do repozytorium. To samo polecenie działa l
 |---|---|
 | `waterbodies.csv` | Rejestr akwenów: prostokąt, rozdzielczość siatki, sezon bez lodu, wodowskaz i jego źródło, klasa `expected` |
 | `sources/s1.py` | Sceny Sentinel-1 RTC: wyszukiwanie w katalogu STAC, stała siatka UTM akwenu, odczyt fragmentu sceny (pasmo VH, dB) |
-| `sources/imgw.py`, `syke.py`, `smhi.py`, `hubeau.py`, `lombardia.py` | Dobowy poziom wody z jednego źródła; wspólna kontrola jakości w `sources/__init__.py` |
+| `sources/imgw.py`, `syke.py`, `smhi.py`, `hubeau.py` | Dobowy poziom wody z jednego źródła; wspólna kontrola jakości w `sources/__init__.py` |
 | `core.py` | Strefa akwenu, próg Otsu, powierzchnia wody, flagi scen, prosta powierzchnia → poziom, miary i werdykt |
+| `series.py` | Metoda v2 (protokół W2): wspólna skala torów, mediana z 15 dni, krzywa 2. stopnia, coroczna rekalibracja, miary okresów |
 | `pipeline.py` | Aktualizacja plików stanu akwenu, miary, bramka jakości; `run` i `render` |
 | `publish.py` | Panel HTML (dane w środku pliku), dane JSON, punkty mapy (GeoJSON), stan przebiegu |
 | `selftest.py` | Test bez sieci: testy jednostkowe, kontrola rejestru i protokołu, cały potok na syntetycznym jeziorze |
-| `config.py` | Ustawienia w jednym miejscu; wartości metody pochodzą z protokołu W1 |
+| `config.py` | Ustawienia w jednym miejscu; wartości metody pochodzą z protokołów W1 i W2 |
 
 Nowy kraj to nowy plik w `sources/` z funkcją `daily(station_id, start, end)` i nowe wiersze w `waterbodies.csv`.
 

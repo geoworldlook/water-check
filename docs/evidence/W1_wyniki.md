@@ -60,6 +60,10 @@ Lata testowe 2024–2025, 10 akwenów, 5691 scen od 2022 roku.
 2. **Lago d'Idro:** rok testowy to tylko 2024 (zbiór ARPA Lombardia kończy się 2025-01-01). Zapisane w protokole, punkt 8.
 3. **Polska:** brak wyniku na żywo za 2026, bo IMGW nie opublikował jeszcze archiwum poziomów. Zapisane w protokole, punkt 8.
 
+4. **Lago d'Idro usunięte z rejestru 2026-11-16 (D-107).** Zbiór poziomów ARPA Lombardia kończy się 2025-01-01,
+   więc akwen nie miał bieżących odczytów. Jego wynik testu (not confirmed) zostaje w tym pliku. Bilans akwenów
+   z sygnałem w rejestrze po usunięciu: 6 (confirmed 2, partly 1, not confirmed 3).
+
 ## 7. Dane przebiegu
 
 | Akwen | Strefa | Scen razem | ok | niski kontrast | niepełne |

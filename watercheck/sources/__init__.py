@@ -1,4 +1,4 @@
-"""Jeden mały moduł na jedno źródło: s1 (sceny radarowe) oraz wodowskazy: imgw, syke, smhi, hubeau, lombardia.
+"""Jeden mały moduł na jedno źródło: s1 (sceny radarowe) oraz wodowskazy: imgw, syke, smhi, hubeau.
 
 Każdy moduł wodowskazu ma funkcję daily(station_id, start, end) -> pd.Series (indeks: data, wartość: poziom w cm).
 """
@@ -9,9 +9,9 @@ import datetime as dt
 
 import pandas as pd
 
-from . import hubeau, imgw, lombardia, smhi, syke
+from . import hubeau, imgw, smhi, syke
 
-GAUGES = {"imgw": imgw, "syke": syke, "smhi": smhi, "hubeau": hubeau, "lombardia": lombardia}
+GAUGES = {"imgw": imgw, "syke": syke, "smhi": smhi, "hubeau": hubeau}
 
 
 def clean(s: pd.Series) -> pd.Series:
