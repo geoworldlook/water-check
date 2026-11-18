@@ -1,7 +1,7 @@
 {
  "project": "water-check",
- "updated": "2026-11-17T23:01Z",
- "run_date": "2026-11-17",
+ "updated": "2026-11-18T16:31Z",
+ "run_date": "2026-11-18",
  "rules": {
   "rho": 0.7,
   "rmse_share": 0.25,
@@ -38,5 +38,8 @@
    "insufficient": 0
   }
  },
- "errors": {}
+ "errors": {
+  "FR-HVIL": "JSONDecodeError: Expecting value: line 1 column 1 (char 0)",
+  "FR-BOUR": "JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+ }
 }
