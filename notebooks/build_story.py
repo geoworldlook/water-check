@@ -16,9 +16,9 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parent / "WaterCheck_story.ipynb"
 
-META = '''title: "Can radar see a reservoir's water level? 10 lakes against their gauges"
+META = '''title: "Can radar see a reservoir's water level? 9 lakes against their gauges"
 date: "2026-11-15"
-summary: "Sentinel-1 radar sees the water surface, not the water level. I compare the radar water area with gauges at 10 lakes and reservoirs. It works on two large shallow reservoirs in Lapland. On most other lakes it does not."
+summary: "Sentinel-1 radar sees the water surface, not the water level. I compare the radar water area with gauges at 9 lakes and reservoirs. It works on two large shallow reservoirs in Lapland. On most other lakes it does not, and a better method does not change that."
 tags: [Sentinel-1, SAR, STAC, Water level, Validation, Pre-registration]
 project: water-check'''
 
@@ -31,8 +31,8 @@ reservoir rises, the water floods the shore and the dark area grows. So the real
 
 **Data:**
 - radar: all Sentinel-1 scenes over each water body since 2022, in the months without ice;
-- gauges: daily water level from five national networks (Poland, Finland, Sweden, France, Italy);
-- 10 water bodies: 7 where I expected a signal and 3 *control lakes*, where the area should not change.
+- gauges: daily water level from four national networks (Poland, Finland, Sweden, France);
+- 9 water bodies: 6 where I expected a signal and 3 *control lakes*, where the area should not change.
 
 **How it works:** a small pipeline called [Water Check](https://github.com/geoworldlook/water-check) runs every day
 without a person. It reads only a small window of each new radar scene from the cloud, computes the water area and
@@ -93,7 +93,7 @@ computed ([protocol W1](https://github.com/geoworldlook/water-check/blob/main/do
   go with a higher level?);
 - the error of the level estimated from the area must be at most 25% of the level range.'''
 
-S2 = '''## 2. Result: it works on two of seven water bodies'''
+S2 = '''## 2. Result: it works on two of six water bodies'''
 
 C2 = '''#| echo: false
 rows = []
@@ -158,7 +158,7 @@ display(Markdown(f"Rank correlation **{t['rho']}**, but level error **{t['rmse_c
 
 S5 = '''## 5. Where it does not work
 
-On four water bodies the radar area does not follow the level. The clearest case is Vombsjön in Sweden.
+On three water bodies the radar area does not follow the level. The clearest case is Vombsjön in Sweden.
 I expected a strong signal there, because the level changes by about two metres. But the shores are steep,
 so the water area hardly changes, and a 20 m radar pixel cannot see it.'''
 
@@ -188,20 +188,70 @@ plt.tight_layout(); plt.show()
 k = D["summary"]["control"]
 display(Markdown(f"**{k['stable']} of {k['n']} control lakes are stable.**"))'''
 
-END = '''## 7. What this means and what it does not
+S7 = '''## 7. Can a better method fix it?
+
+After the test I tried to improve the method in the way recent studies of reservoirs do
+(for example [a comparison of Sentinel-1 and Sentinel-2 on 29 reservoirs](https://doi.org/10.3390/rs13091745) and
+[area-to-level curves for reservoirs](https://doi.org/10.1029/2023WR036450)). Method v2 has three changes:
+
+1. **One scale for all tracks.** The area from each satellite track is expressed as a distance from the mean of that track.
+2. **Smoothing.** A median of the last 15 days, using only past scenes. One scene is noisy (wind, radar speckle).
+3. **A curve, fitted again every year.** A curve instead of a line, fitted on all earlier years. So the year 2025 is
+   estimated with a curve from 2022–2024.
+
+The window and the curve were chosen on 2022–2023 only, and the rules were written down before v2 was computed on
+later years ([protocol W2](https://github.com/geoworldlook/water-check/blob/main/docs/evidence/W2_protokol_metoda_v2.md), in Polish).
+There are two checks. The years 2024–2025 are a *second look*: I already knew the first results for them, so this is
+not an independent test. The year 2026 is the *confirmation*: nothing from 2026 was used to design v2.'''
+
+C7 = '''#| echo: false
+sig = [w for w in D["waterbodies"] if w["expected"] != "control"]
+dash = lambda v, f="{}": "–" if v is None else f.format(v)
+rows = []
+for w in sig:
+    t, r, c = w["metrics"]["test"], w["v2"]["retest"], w["v2"]["confirm"]
+    rows.append({"Water body": w["name"], "Level error 2024–2025, v1 (cm)": dash(t["rmse_cm"]), "v2 (cm)": dash(r["rmse_cm"]),
+                 "Verdict v2, 2024–2025": w["v2"]["verdict_retest"], "2026: rank corr.": dash(c["rho"], "{:.2f}"),
+                 "2026: level error (cm)": dash(c["rmse_cm"]), "2026: level range (cm)": dash(c["range_cm"]),
+                 "Verdict v2, 2026": w["v2"]["verdict_confirm"]})
+display(HTML(pd.DataFrame(rows).to_html(index=False, border=0)))
+fig, ax = plt.subplots(figsize=(9, 3.4))
+names = [w["name"].replace("Retenue de la ", "").replace("Zbiornik ", "") for w in sig]
+k = np.arange(len(sig))
+ax.bar(k - 0.2, [w["metrics"]["test"]["rmse_cm"] for w in sig], 0.4, color="#8a8f88", label="v1: one line per track, fitted on 2022–2023")
+ax.bar(k + 0.2, [w["v2"]["retest"]["rmse_cm"] for w in sig], 0.4, color="#2f75b5", label="v2: smoothing, curve, yearly refit")
+ax.set_xticks(k); ax.set_xticklabels(names, fontsize=9)
+ax.set_ylabel("level error in 2024–2025, cm"); ax.legend(frameon=False)
+plt.tight_layout(); plt.show()
+better = sum(1 for w in sig if w["v2"]["retest"]["rmse_cm"] < w["metrics"]["test"]["rmse_cm"])
+conf = [w["v2"]["verdict_confirm"] for w in sig]
+display(Markdown(f"**Second look, 2024–2025:** the level error is smaller on {better} of {len(sig)} water bodies. "
+                 f"**Confirmation, 2026:** {conf.count('confirmed')} confirmed, {conf.count('partly')} partly, "
+                 f"{conf.count('not confirmed')} not confirmed, {conf.count('insufficient')} without gauge data yet."))'''
+
+S7B = '''**So the better method did not pass its own test.** The error became smaller, but in 2026 no water body meets both
+rules. The reason is simple. In 2026 the level in the two Lapland reservoirs moved by about 45 cm, and in 2024–2025
+by more than 100 cm. The error of the method stays near 20 cm. A change of one metre is easy to see; a change of
+45 cm is not. On the small reservoir Haute-Vilaine the smoothing even makes the result worse, because the level
+there changes faster than a 15-day median can follow.
+
+The limit is the shape of the shore and the size of the level change, not the processing of the series.'''
+
+END = '''## 8. What this means and what it does not
 
 - **Radar can stand in for a gauge only on some water bodies:** large, shallow reservoirs with flat shores.
   That is a useful result, and so is the list of places where it fails.
-- **A straight line from area to level is too simple.** It breaks when the level leaves the range it was fitted on.
-  The next step is a curve based on the shape of the shore.
+- **The method sees large changes, not small ones.** The level error is about 20 cm even on the best reservoirs.
+- **More processing does not help.** The next step needs a second measurement: the shape of the shore from a
+  terrain model, or radar altimetry.
 - **No result in the ice season.** In Lapland that is half of the year.
-- **One live season is not enough.** In 2026 the two Lapland reservoirs score lower. I report it and keep measuring.
-- **One lake was removed after the run** (Jezioro Łebsko): its rectangle also covered the Baltic Sea.
-  The removal is based on that error, not on its result.
+- **Two water bodies were removed, and not because of their results.** Jezioro Łebsko: its rectangle also covered
+  the Baltic Sea. Lago d'Idro (Italy): its open gauge data end in January 2025, and the panel shows only places
+  with current readings.
 - **Switzerland and Norway are missing:** I found no open gauge history for Switzerland, and Norway needs a key.
 
 **Data:** contains modified Copernicus Sentinel data (Sentinel-1), read from the Microsoft Planetary Computer.
-Gauge levels: IMGW-PIB (Poland), SYKE (Finland), SMHI (Sweden), Hub'Eau (France), ARPA Lombardia (Italy).
+Gauge levels: IMGW-PIB (Poland), SYKE (Finland), SMHI (Sweden), Hub'Eau (France).
 
 **Code and live panel:** [github.com/geoworldlook/water-check](https://github.com/geoworldlook/water-check) ·
 [live panel](https://geoworldlook.github.io/water-check/showcase/watercheck_panel.html)'''
@@ -218,7 +268,7 @@ def code(text: str) -> dict:
 
 def main() -> None:
     cells = [md(META), md(INTRO), code(SETUP), md(S1), md(S2), code(C2), md(S3), code(C3), md(S4), code(C4), md(S5),
-             code(C5), md(S6), code(C6), md(END)]
+             code(C5), md(S6), code(C6), md(S7), code(C7), md(S7B), md(END)]
     nb = {"cells": cells, "nbformat": 4, "nbformat_minor": 5,
           "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
                        "language_info": {"name": "python"}}}
