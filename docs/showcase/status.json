@@ -1,7 +1,7 @@
 {
  "project": "water-check",
- "updated": "2026-11-27T23:34Z",
- "run_date": "2026-11-27",
+ "updated": "2026-11-28T16:16Z",
+ "run_date": "2026-11-28",
  "rules": {
   "rho": 0.7,
   "rmse_share": 0.25,
